@@ -1,11 +1,19 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    main.c
-  * @brief   LED 流水灯实验
-  *          主控：STM32F103C8T6（最小系统板）
-  *          工具：STM32CubeMX 生成 + Keil MDK-ARM 编译 + ST-Link V2 下载
-  *          说明：本文件为应用层代码，除标注 USER CODE 的区块外均由 CubeMX 生成
+  * @file           : main.c
+  * @brief          : Main program body
+  *                   外接 LED（PA0）与板载 LED（PC13）交替闪烁
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2026 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -25,16 +33,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-/* 流水灯工作模式（改这一个数字即可切换，无需动其它代码）
- *   0 = 两灯交替流水：PA0 外接 LED 与 PC13 板载 LED 交替点亮，本次实验采用此模式
- *   1 = 四灯流水    ：PB12 / PB13 / PB14 / PB15 依次点亮，需在面包板上接好 4 颗 LED
- *                     每颗 LED 必须各串一只限流电阻（推荐 220Ω ~ 1kΩ）
- */
-#define LED_MODE_4LAMP      0
-
-/* 每一步停留的时间，单位毫秒。改小则流水更快 */
-#define LED_STEP_MS         500
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,54 +50,11 @@
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 /* USER CODE BEGIN PFP */
-static void LED_AllOff(void);
-static void LED_Step(uint8_t index);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-#if LED_MODE_4LAMP
-#define LED_CNT   4
-static const uint16_t g_ledPin[4] = {GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14, GPIO_PIN_15};
-
-/* 四灯全部熄灭（共阴极接法：输出低电平即灭） */
-static void LED_AllOff(void)
-{
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15, GPIO_PIN_RESET);
-}
-
-/* 只点亮第 index 颗灯 */
-static void LED_Step(uint8_t index)
-{
-  if (index < 4)
-  {
-    HAL_GPIO_WritePin(GPIOB, g_ledPin[index], GPIO_PIN_SET);
-  }
-}
-#else
-#define LED_CNT   2
-
-/* 两灯全部熄灭：外接 LED 在 PA0（高电平点亮），板载 LED 在 PC13（低电平点亮） */
-static void LED_AllOff(void)
-{
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0,  GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-}
-
-/* 第 0 步点 PA0，第 1 步点 PC13 */
-static void LED_Step(uint8_t index)
-{
-  if (index == 0)
-  {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
-  }
-  else if (index == 1)
-  {
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-  }
-}
-#endif
 
 /* USER CODE END 0 */
 
@@ -110,7 +65,7 @@ static void LED_Step(uint8_t index)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint8_t step = 0;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -132,22 +87,24 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-  LED_AllOff();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    LED_AllOff();            /* 先全灭，保证任何时刻只有一颗灯亮 */
-    LED_Step(step);          /* 点亮当前这一步对应的灯 */
-    HAL_Delay(LED_STEP_MS);  /* 停留一段时间，让人眼能看到 */
+    /* PA0 输出高电平：外接 LED（共阴接法，长脚接 PA0）点亮 */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
+    /* PC13 输出高电平：板载 LED 熄灭（低电平点亮） */
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+    HAL_Delay(500);
 
-    step++;
-    if (step >= LED_CNT)
-    {
-      step = 0;              /* 走完一轮回到第一颗，形成循环流水 */
-    }
+    /* PA0 输出低电平：外接 LED 熄灭 */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
+    /* PC13 输出低电平：板载 LED 点亮 */
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+    HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -181,8 +138,8 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-                              | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -208,29 +165,20 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
-  /* 先把所有 LED 引脚置为熄灭状态，避免上电瞬间闪一下 */
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
-  /* PA0：外接 LED（共阴极接法，高电平点亮） */
+  /*Configure GPIO pin : PA0 (外接 LED) */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* PB12 ~ PB15：四灯流水时可用的四个输出引脚 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* PC13：多数最小系统板的板载 LED，低电平点亮 */
+  /*Configure GPIO pin : PC13 (板载 LED，多数最小系统板为低电平点亮) */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -252,6 +200,7 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
   {
@@ -270,6 +219,8 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
